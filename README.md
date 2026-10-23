@@ -153,6 +153,6 @@ Code: MIT License. FLORES-200 data is released by Meta under CC BY-SA 4.0; see t
 
 ## Author
 
-**YOUR NAME** — [GitHub](https://github.com/YOUR_USERNAME) · [Email](mailto:you@example.com)
+**Dikshya Lamichhane** — [GitHub](https://github.com/DikshyaL) · [Email](mailto:lamichhanedikshya7@gmail.com)
 
 Feedback, questions and collaboration on Nepali and low-resource language NLP are very welcome.
