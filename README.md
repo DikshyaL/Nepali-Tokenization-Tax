@@ -1,140 +1,140 @@
 # Nepali Tokenization Tax
 
-**How much more does it cost to use AI in Nepali than in English?**
+**Why does it cost more to use AI in Nepali than in English, and what causes it?**
 
-Large language models read text as *tokens*, and they are billed, limited and slowed down by token count. Because tokenizers are built mostly from English data, the same sentence often costs far more tokens in other languages. This extra cost is called the **tokenization tax**.
+Large language models read text as *tokens*, and they are billed, limited and slowed down by token count. The same sentence often needs far more tokens in some languages than in English. This extra cost is called the **tokenization tax**.
 
-This project measures the tokenization tax for **Nepali** across 11 modern tokenizers, and asks a specific question: Nepali and Hindi share the same script (Devanagari), so **is the tax caused by the script itself, or by how little Nepali data exists online?**
+This project does two things:
 
-![English vs Hindi vs Nepali](images/english_hindi_nepali.png)
+1. **Measures** the tokenization tax for Nepali across 11 modern LLM tokenizers and 12 languages.
+2. **Explains** it, identifying two mechanisms and testing them with controlled experiments.
 
----
-
-## Key findings
-
-**1. Nepali pays a tax in every tokenizer tested.** The same 2,009 sentences cost between **1.53×** and **4.77×** as many tokens in Nepali as in English, depending on the tokenizer. That is more than a threefold difference in cost for identical content, purely from tokenizer design.
-
-**2. In weak tokenizers, the script is the bottleneck.** In tokenizers with little Devanagari knowledge (GPT-4's cl100k, GLM-4.5, Qwen3), Nepali and Hindi cost almost exactly the same (Nepali/Hindi ratio ≈ 1.00). Their text is split into raw byte fragments, so cost depends on byte length, not on how much data each language had.
-
-**3. In strong multilingual tokenizers, data scarcity takes over.** In tokenizers that learned real Devanagari subwords (Gemma 3, Mistral Nemo, Llama 4), Nepali costs **11–19% more than Hindi**, even though both use the same script. Better tokenizers make Nepali much cheaper in absolute terms, but they also reveal the data gap that weaker tokenizers were hiding.
-
-**4. Vocabulary size is not destiny.** Qwen3 and GLM-4.5 (~151k tokens) are about as costly for Nepali as GPT-4's older 100k vocabulary, while GPT-4o (~200k) and Llama 4 (~201k), nearly identical in size, differ noticeably. What a vocabulary is spent on matters more than how large it is.
-
-**5. Same script, different costs.** Across six Devanagari languages (Hindi, Marathi, Nepali, Maithili, Bhojpuri, Sanskrit), weak tokenizers price them all about the same, while strong tokenizers spread them apart, roughly in line with how much online text each language has.
-
-![Devanagari languages](images/devanagari.png)
+The central question: Nepali and Hindi share the Devanagari script, so is Nepali's extra cost caused by the **script**, or by **how little Nepali data** tokenizers are trained on?
 
 ---
 
-## Results
+## Main findings
 
-Parity = tokens needed for the text in that language ÷ tokens needed for the same text in English (1.00 = same cost as English). Sorted from best to worst for Nepali.
+**1. Nepali pays a tax in every tokenizer tested.** On the same 2,009 sentences, Nepali needs **1.5× to 4.8×** as many tokens as English, depending on the tokenizer.
 
-| Tokenizer | Vocab size | Hindi parity | Nepali parity | Nepali / Hindi |
-|---|---:|---:|---:|---:|
-| Gemma 3 | 262k | 1.31 | 1.53 | 1.17 |
-| GPT-4o (o200k) | 200k | 1.58 | 1.62 | 1.03 |
-| Llama 4 | 201k | 1.65 | 1.83 | 1.11 |
-| Mistral Nemo | 131k | 1.80 | 2.14 | 1.19 |
-| Mistral Small 3.1 | 131k | 1.80 | 2.14 | 1.19 |
-| Llama 3.2 | 128k | 2.53 | 2.59 | 1.02 |
-| Kimi K2 | 163k | 2.75 | 2.80 | 1.02 |
-| DeepSeek-V3 | 128k | 2.81 | 2.98 | 1.06 |
-| Qwen3 | 151k | 4.43 | 4.42 | 1.00 |
-| GPT-4 (cl100k) | 100k | 4.78 | 4.77 | 1.00 |
-| GLM-4.5 | 151k | 4.77 | 4.77 | 1.00 |
+**2. Mechanism 1, the splitting rule.** Before learning their vocabulary, tokenizers cut text into chunks with a fixed rule (pre-tokenization). Older rules keep only Unicode *letters* together, but Devanagari vowel signs (matras such as ा and े) are Unicode *marks*. These rules therefore cut every Devanagari word at its vowel signs, so whole words can never become tokens. Under this rule, Nepali and Hindi cost the same (Nepali/Hindi ≈ 1.00), and adding more Nepali data barely helps.
 
-Full results for all 12 languages, including tokens per word, characters per token and bytes per token, are in [`token_tax_results.csv`](token_tax_results.csv).
+**3. Mechanism 2, data share.** When the splitting rule keeps words whole, a language's cost depends on how much of it the tokenizer saw during training. In a controlled experiment, increasing Nepali's share of the training data **caused** its token count to fall by **37%**, with the first 1% of data alone removing **19%**.
 
-![Vocabulary size vs tokenization tax](images/vocab_vs_tax.png)
-
-**Sanity checks.** Mistral Nemo and Mistral Small 3.1 produce identical results, as expected since they share the same tokenizer (Tekken). GLM-4.5 produces exactly the same token counts as GPT-4's cl100k on the sample Devanagari sentences, suggesting it handles Devanagari in essentially the same way.
+**4. With equal data, Nepali is cheaper than Hindi.** Given the same amount of training data, Nepali needs fewer tokens than Hindi (ratio 0.88). The 11–19% Nepali-over-Hindi gap in strong production tokenizers therefore reflects how little Nepali they were trained on, not anything inherent to the language.
 
 ---
 
-## Method
+## Part 1: Observational study (11 tokenizers)
 
-**Data.** [FLORES-200](https://github.com/facebookresearch/flores), a professionally translated parallel benchmark from Meta. All `dev` and `devtest` sentences were used: **2,009 sentences per language**, identical in meaning across languages, which makes direct cost comparison fair.
+Parity = tokens needed for a language ÷ tokens needed for the same text in English (1.00 = same cost as English).
 
-**Languages (12).**
+| Tokenizer | Vocab | Splitting rule | Hindi parity | Nepali parity | Nepali / Hindi |
+|---|---:|---|---:|---:|---:|
+| Gemma 3 | 262k | Keeps words whole | 1.31 | 1.53 | 1.17 |
+| GPT-4o (o200k) | 200k | Keeps words whole | 1.58 | 1.62 | 1.03 |
+| Llama 4 | 201k | Keeps words whole | 1.65 | 1.83 | 1.11 |
+| Mistral Nemo | 131k | Keeps words whole | 1.80 | 2.14 | 1.19 |
+| Mistral Small 3.1 | 131k | Keeps words whole | 1.80 | 2.14 | 1.19 |
+| Kimi K2 | 163k | Keeps words whole | 2.75 | 2.80 | 1.02 |
+| DeepSeek-V3 | 128k | Keeps words whole | 2.81 | 2.98 | 1.06 |
+| Llama 3.2 | 128k | Breaks words | 2.53 | 2.59 | 1.02 |
+| Qwen3 | 151k | Breaks words | 4.43 | 4.42 | 1.00 |
+| GPT-4 (cl100k) | 100k | Breaks words | 4.78 | 4.77 | 1.00 |
+| GLM-4.5 | 151k | Breaks words | 4.77 | 4.77 | 1.00 |
 
-| Group | Languages |
-|---|---|
-| Baseline | English |
-| Devanagari script | Hindi, Marathi, Nepali, Maithili, Bhojpuri, Sanskrit |
-| Other scripts (context) | Bengali, Tamil, Urdu, Chinese (Simplified), Spanish |
+**What the table shows:**
 
-**Tokenizers (11).**
+- **Tokenizers that break words** have Nepali/Hindi between **0.997 and 1.023**: the two languages cost the same, because both are reduced to the same small shared fragments.
+- **Tokenizers that keep words whole** have Nepali/Hindi between **1.016 and 1.19**. Keeping words whole is *necessary* for a large gap, but not *sufficient*: the gap also depends on how much Devanagari vocabulary the tokenizer learned.
+- **Vocabulary size is not destiny.** Similar-sized vocabularies give very different results; what a vocabulary is spent on matters more than its size.
 
-| Name | Source |
-|---|---|
-| GPT-4 (cl100k) | `tiktoken` — `cl100k_base` |
-| GPT-4o (o200k) | `tiktoken` — `o200k_base` |
-| Llama 3.2 | `unsloth/Llama-3.2-1B` |
-| Llama 4 | `unsloth/Llama-4-Scout-17B-16E-Instruct` |
-| Qwen3 | `Qwen/Qwen3-0.6B` |
-| DeepSeek-V3 | `deepseek-ai/DeepSeek-V3` |
-| Mistral Nemo | `mistralai/Mistral-Nemo-Base-2407` |
-| Mistral Small 3.1 | `unsloth/Mistral-Small-3.1-24B-Instruct-2503` (loaded with `fix_mistral_regex=True`) |
-| Gemma 3 | `unsloth/gemma-3-1b-it` |
-| Kimi K2 | `moonshotai/Kimi-K2-Instruct` (requires `trust_remote_code=True`) |
-| GLM-4.5 | `zai-org/GLM-4.5` |
+The splitting-rule difference, in one example:
 
-Only the tokenizer files are downloaded, not the models themselves. Special tokens are excluded from all counts.
-
-**Metrics.**
-
-- **Parity**: total tokens for a language ÷ total tokens for English on the same sentences.
-- **Nepali / Hindi ratio**: Nepali parity ÷ Hindi parity, isolating the cost difference between two languages that share a script.
-- **Tokens per word**, **characters per token**, **bytes per token**: how much text each token carries. (Tokens per word is not meaningful for Chinese, which does not separate words with spaces.)
-- **Per-sentence parity**: computed for every sentence to show how consistent the tax is, not just its average.
-
----
-
-## Running it yourself
-
-The whole analysis runs in [Google Colab](https://colab.research.google.com/) for free, with no Hugging Face login needed.
-
-1. Open `nepali_tokenization_tax.ipynb` in Colab (File → Upload notebook, or use the badge below once this repo is public).
-2. Run the cells from top to bottom.
-3. Measuring all tokenizers takes a few minutes. Results are saved to `token_tax_results.csv`.
-
-<!-- Replace YOUR_USERNAME and YOUR_REPO with your GitHub details -->
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/YOUR_USERNAME/YOUR_REPO/blob/main/nepali_tokenization_tax.ipynb)
-
-To add a language, add its FLORES-200 code to the `LANGS` dictionary (for example `"ben_Beng": "Bengali"`). To add a tokenizer, add its Hugging Face repo name to `TOKENIZERS`.
-
----
-
-## Repository structure
-
+```python
+import regex
+word = "नेपालमा"   # "in Nepal"
+regex.findall(r"\p{L}+|\p{N}+|[^\s\p{L}\p{N}]+", word)              # old rule
+# ['न', 'े', 'प', 'ा', 'लम', 'ा']
+regex.findall(r"[\p{L}\p{M}]+|\p{N}+|[^\s\p{L}\p{M}\p{N}]+", word)  # keeps marks
+# ['नेपालमा']
 ```
-├── nepali_tokenization_tax.ipynb   # full analysis notebook
-├── token_tax_results.csv           # results for all tokenizers and languages
-├── images/                         # charts used in this README
-│   ├── english_hindi_nepali.png
-│   ├── devanagari.png
-│   ├── vocab_vs_tax.png
-│   └── heatmap.png
-└── README.md
-```
+
+*(Simplified versions of the real pre-tokenization rules, showing the key difference.)*
+
+---
+
+## Part 2: Experiment 1, does data share cause the tax?
+
+The observational study suggests data scarcity drives the gap, but real tokenizers differ in many ways at once. To test causation, I trained byte-level BPE tokenizers myself and changed **only one thing**: Nepali's share of the training data.
+
+**Setup:**
+
+- Training text: Wikipedia in English, Hindi and Nepali, 20M characters in total
+- Hindi fixed at 20%; Nepali varied from 0% to 30%
+- Algorithm: byte-level BPE, 32k vocabulary
+- 7 Nepali shares × 3 random seeds = 21 tokenizers, plus 2 ablation tokenizers (23 in total)
+- Evaluation: FLORES-200 (2,009 parallel sentences), never seen in training
+
+**Results** (averages over 3 seeds; variation between seeds was ±0.001–0.008):
+
+| Nepali share | Nepali parity | Hindi parity | Nepali / Hindi | Devanagari tokens in vocab |
+|---:|---:|---:|---:|---:|
+| 0% | 1.708 | 1.279 | 1.336 | 8,254 |
+| 1% | 1.378 | 1.275 | 1.080 | 8,628 |
+| 2% | 1.314 | 1.271 | 1.034 | 8,973 |
+| 5% | 1.229 | 1.261 | 0.974 | 9,880 |
+| 10% | 1.148 | 1.247 | 0.921 | 11,245 |
+| 20% | 1.073 | 1.221 | 0.879 | 13,514 |
+| 30% | 1.025 | 1.196 | 0.857 | 15,600 |
+
+**What it shows:**
+
+- **Data share causes the tax.** Nepali's token count falls by **37%** from 0% to 30% share, and it falls at every single step (Spearman ρ = −1.0 across the seven settings). Hindi's token count, whose data never changed, moves only about 2%.
+- **The first data matters most.** Going from 0% to just 1% Nepali cuts Nepali's tokens by **19%**; going from 1% all the way to 30% saves only about 18 points more. Even a small, deliberate amount of a language in tokenizer training removes most of its tax.
+- **Nepali catches up with Hindi on much less data.** Nepali/Hindi crosses 1.00 between 2% and 5% Nepali, while Hindi has 20%.
+- **Spillover.** Marathi, never in the training data, becomes about 6% cheaper as Nepali's share rises: related Devanagari languages share many pieces.
+
+**Ablation: the splitting rule.** I repeated two settings with the word-breaking (GPT-2 style) splitting rule:
+
+| Splitting rule | Nepali tokens, 5% → 20% share | Nepali / Hindi |
+|---|---|---|
+| Keeps words whole | 70,091 → 62,731 (**−10.5%**) | 0.97 → 0.88 |
+| Breaks words | 173,595 → 172,540 (**−0.6%**) | 1.04 → 1.04 |
+
+With the word-breaking rule, quadrupling Nepali's data barely helps, matching what GPT-4, Qwen3 and GLM-4.5 show in Part 1. The observational study and the controlled experiment agree.
+
+*A note on the numbers: parity is a ratio to English, and English's share of the training data shrinks as Nepali's grows, which slightly raises English token counts. Causal claims above therefore use raw token counts, which measure each language directly.*
 
 ---
 
 ## Limitations
 
-- **Formal text only.** FLORES-200 contains news-style, formal translations. Everyday Nepali, romanized Nepali (Nepali typed in Latin letters) and Nepali–English code-mixed text may behave very differently.
-- **Cost, not quality.** These results measure how many tokens text needs, not how well models understand it. Higher fragmentation is often linked to weaker performance, but that was not tested here.
-- **Translation effects.** Translations naturally vary in length, so small parity differences (a few percent) should not be over-interpreted.
-- **Closed tokenizers excluded.** Tokenizers that are not publicly available (for example those of Claude or Gemini) could not be tested.
+- **Narrow controlled setup:** one algorithm (byte-level BPE), one vocabulary size (32k), and a 20M-character training corpus, much smaller than production tokenizers use.
+- **Domain mismatch:** tokenizers were trained on Wikipedia but evaluated on FLORES news text. This affects all languages, and conclusions rely on comparisons between languages.
+- **Hindi fixed at 20%:** Hindi's share was never varied.
+- **Untested explanation:** why Nepali is cheaper than Hindi with equal data is not yet established. One hypothesis is grammar: Hindi writes postpositions such as में and को as separate words, while Nepali attaches them (मा, को), letting them merge into words.
+- **Cost, not quality:** these results measure how many tokens text needs, not how well models understand or translate it.
+- **Closed tokenizers excluded:** tokenizers that are not publicly available could not be tested.
 
 ---
 
-## Future work
+## Next steps
 
-- Measure the tax for **romanized Nepali** and **Nepali–English code-mixed** text.
-- Test whether a higher tokenization tax corresponds to **lower model performance** on Nepali tasks.
-- Extend an existing tokenizer with **Nepali-specific tokens** and measure how much the tax drops.
+- Robustness checks: a larger vocabulary (64k) and a different Hindi share.
+- **Experiment 2:** extend an existing LLM tokenizer with Nepali-specific tokens and measure how much the tax drops.
+- Test whether a higher tokenization tax goes along with lower translation quality, and which evaluation metrics are reliable for Nepali.
+- Romanized Nepali and Nepali–English code-mixed text.
+
+---
+
+## Running it yourself
+
+Everything runs in [Google Colab](https://colab.research.google.com/) for free, with no Hugging Face login needed.
+
+1. Open a notebook from `notebooks/` in Colab (File → Upload notebook).
+2. Run all cells. The observational study takes a few minutes; Experiment 1 takes longer because it trains 23 tokenizers.
+3. Training text and trained tokenizers are not stored in this repository because of their size. The Experiment 1 notebook downloads and rebuilds them.
 
 ---
 
@@ -149,10 +149,11 @@ To add a language, add its FLORES-200 code to the `LANGS` dictionary (for exampl
 
 ## License
 
-Code: MIT License. FLORES-200 data is released by Meta under CC BY-SA 4.0; see the [FLORES repository](https://github.com/facebookresearch/flores) for details.
+Code: MIT License. FLORES-200 data is released by Meta under CC BY-SA 4.0; see the [FLORES repository](https://github.com/facebookresearch/flores). Wikipedia text is available under CC BY-SA.
 
 ## Author
 
-**Dikshya Lamichhane** — [GitHub](https://github.com/DikshyaL) · [Email](mailto:lamichhanedikshya7@gmail.com)
+**Dikshya Lamichhane** — Computer Engineering, Kathmandu University
+[GitHub](https://github.com/DikshyaL) · [LinkedIn](https://www.linkedin.com/in/dikshya-lamichhane) · lamichhaned001@gmail.com
 
-Feedback, questions and collaboration on Nepali and low-resource language NLP are very welcome.
+Feedback and collaboration on Nepali and low-resource language NLP are very welcome.
